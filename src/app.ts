@@ -48,7 +48,7 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 });
 
 // Handle Unknown Routes
-app.use("*", (_req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",

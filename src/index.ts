@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import "./config/db";
 import app from "./app";
 
 dotenv.config();
