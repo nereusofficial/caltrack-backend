@@ -183,7 +183,7 @@ export const verifyEmail = async (
     );
 
     return res.redirect(
-      "http://localhost:5173/login?verified=true"
+      "http://localhost:5173/verify-success"
     );
   } catch (err: any) {
     return res.status(500).send(err.message);
