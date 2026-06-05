@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import pool from "../config/db";
-import { sendVerificationEmail } from "../services/email.service";
+import { sendVerificationEmail, sendResetPasswordEmail, } from "../services/email.service";
 
 export const signup = async (req: Request, res: Response) => {
   try {
@@ -230,6 +230,123 @@ export const login = async (
     return res.status(200).json({
       success: true,
       message: "Login successful",
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { email } = req.body;
+
+    const user = await pool.query(
+      `
+      SELECT *
+      FROM users
+      WHERE email = $1
+      `,
+      [email]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with that email.",
+      });
+    }
+
+    const token = uuidv4();
+
+    const expiresAt = new Date(
+      Date.now() + 1000 * 60 * 60
+    );
+
+    await pool.query(
+      `
+      UPDATE users
+      SET
+        reset_token = $1,
+        reset_token_expires = $2
+      WHERE email = $3
+      `,
+      [token, expiresAt, email]
+    );
+
+    await sendResetPasswordEmail(email, token);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset email sent.",
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { token, password } = req.body;
+
+    const user = await pool.query(
+      `
+      SELECT *
+      FROM users
+      WHERE reset_token = $1
+      `,
+      [token]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid reset token.",
+      });
+    }
+
+    const account = user.rows[0];
+
+    if (
+      account.reset_token_expires &&
+      new Date() >
+        new Date(account.reset_token_expires)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Reset token expired.",
+      });
+    }
+
+    const hashedPassword =
+      await bcrypt.hash(password, 10);
+
+    await pool.query(
+      `
+      UPDATE users
+      SET
+        password = $1,
+        reset_token = NULL,
+        reset_token_expires = NULL
+      WHERE id = $2
+      `,
+      [hashedPassword, account.id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully.",
     });
   } catch (err: any) {
     return res.status(500).json({
