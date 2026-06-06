@@ -17,6 +17,7 @@ app.use(helmet());
 const allowedOrigins = [
   "http://localhost:5173",
   "https://caltrackv1.vercel.app",
+  "https://caltrackv1.vercel.app/", // ← add this back
 ];
 
 const corsOptions: cors.CorsOptions = {
@@ -24,15 +25,17 @@ const corsOptions: cors.CorsOptions = {
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
 
+    // Normalize both sides
     const normalized = origin.replace(/\/$/, "");
     const isAllowed = allowedOrigins
       .map((o) => o.replace(/\/$/, ""))
       .includes(normalized);
 
     if (isAllowed) return callback(null, true);
+
+    console.log("CORS blocked origin:", origin); // ← add this for debugging
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
