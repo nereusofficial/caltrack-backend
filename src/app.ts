@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes";
+import pool from "./config/db";
 
 dotenv.config();
 
@@ -30,6 +31,24 @@ app.get("/api/health", (_req, res) => {
     success: true,
     message: "CalTrack API is running",
   });
+});
+
+app.get("/api/db-test", async (_req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()");
+
+    res.status(200).json({
+      success: true,
+      message: "Database connected",
+      time: result.rows[0],
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+      error: err.message,
+    });
+  }
 });
 
 // API Routes
