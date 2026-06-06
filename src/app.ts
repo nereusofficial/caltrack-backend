@@ -1,4 +1,4 @@
-import express, { Application } from "express";
+import express, { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -13,36 +13,38 @@ const app: Application = express();
 // Security middleware
 app.use(helmet());
 
-// Enable CORS
-// Enable CORS
+// CORS configuration
 const allowedOrigins = [
   "http://localhost:5173",
   "https://caltrackv1.vercel.app",
-  "https://caltrackv1.vercel.app/",
 ];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
+const corsOptions: cors.CorsOptions = {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
 
-      const normalizedOrigin = origin.endsWith("/")
-        ? origin.slice(0, -1)
-        : origin;
+    const normalized = origin.replace(/\/$/, "");
+    const isAllowed = allowedOrigins
+      .map((o) => o.replace(/\/$/, ""))
+      .includes(normalized);
 
-      const isAllowed = allowedOrigins.some(
-        (o) => o.replace(/\/$/, "") === normalizedOrigin
-      );
+    if (isAllowed) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-      if (isAllowed) {
-        return callback(null, true);
-      }
+// Handle preflight requests for all routes
+app.options("*", cors(corsOptions));
 
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
+// Apply CORS to all requests
+app.use(cors(corsOptions));
 
 // Request logging
 app.use(morgan("dev"));
@@ -54,14 +56,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health Check Route
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     message: "CalTrack API is running",
   });
 });
 
-app.get("/api/db-test", async (_req, res) => {
+// Database Test Route
+app.get("/api/db-test", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query("SELECT NOW()");
 
@@ -86,7 +89,7 @@ app.use("/api/auth", authRoutes);
 // app.use("/api/calories", calorieRoutes);
 
 // Global Error Handler
-app.use((err: any, _req: any, res: any, _next: any) => {
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
 
   res.status(err.status || 500).json({
@@ -96,7 +99,7 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 });
 
 // Handle Unknown Routes
-app.use((_req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
