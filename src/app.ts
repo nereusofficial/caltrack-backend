@@ -1,5 +1,4 @@
 import express, { Application, Request, Response, NextFunction } from "express";
-import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
@@ -13,14 +12,11 @@ const app: Application = express();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
-const corsOptions: cors.CorsOptions = {
-  origin: (
-    origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void
-  ) => {
-    if (!origin) return callback(null, true);
+// Manual CORS middleware (replaces cors package)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
 
+  if (origin) {
     const normalized = origin.replace(/\/$/, "");
 
     const allowedPatterns = [
@@ -29,25 +25,20 @@ const corsOptions: cors.CorsOptions = {
       /^https:\/\/caltrack-frontend-[a-z0-9]+-nereusofficials-projects\.vercel\.app$/,
     ];
 
-    const isAllowed = allowedPatterns.some((pattern) =>
-      pattern.test(normalized)
-    );
+    if (allowedPatterns.some((p) => p.test(normalized))) {
+      res.setHeader("Access-Control-Allow-Origin", normalized);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    }
+  }
 
-    if (isAllowed) return callback(null, true);
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
 
-    console.log("CORS blocked origin:", origin);
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-
-// Handle preflight requests for all routes (Express 5 syntax)
-app.options("/{*path}", cors(corsOptions));
-
-// Apply CORS to all requests
-app.use(cors(corsOptions));
+  next();
+});
 
 // Request logging
 app.use(morgan("dev"));
