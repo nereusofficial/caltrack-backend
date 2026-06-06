@@ -14,12 +14,32 @@ const app: Application = express();
 app.use(helmet());
 
 // Enable CORS
+// Enable CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://caltrackv1.vercel.app",
+  "https://caltrackv1.vercel.app/",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://caltrackv1.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.endsWith("/")
+        ? origin.slice(0, -1)
+        : origin;
+
+      const isAllowed = allowedOrigins.some(
+        (o) => o.replace(/\/$/, "") === normalizedOrigin
+      );
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
