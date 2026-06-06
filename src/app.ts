@@ -16,7 +16,10 @@ app.use(helmet());
 // Enable CORS
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: [
+      "http://localhost:5173",
+      "https://caltrackv1.vercel.app",
+    ],
     credentials: true,
   })
 );
