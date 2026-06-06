@@ -14,12 +14,6 @@ const app: Application = express();
 app.use(helmet());
 
 // CORS configuration
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://caltrackv1.vercel.app",
-  "https://caltrack-frontend-gc7mhuwb4-nereusofficials-projects.vercel.app",
-];
-
 const corsOptions: cors.CorsOptions = {
   origin: (
     origin: string | undefined,
@@ -28,9 +22,16 @@ const corsOptions: cors.CorsOptions = {
     if (!origin) return callback(null, true);
 
     const normalized = origin.replace(/\/$/, "");
-    const isAllowed = allowedOrigins
-      .map((o) => o.replace(/\/$/, ""))
-      .includes(normalized);
+
+    const allowedPatterns = [
+      /^http:\/\/localhost:\d+$/,
+      /^https:\/\/caltrackv1\.vercel\.app$/,
+      /^https:\/\/caltrack-frontend-[a-z0-9]+-nereusofficials-projects\.vercel\.app$/,
+    ];
+
+    const isAllowed = allowedPatterns.some((pattern) =>
+      pattern.test(normalized)
+    );
 
     if (isAllowed) return callback(null, true);
 
