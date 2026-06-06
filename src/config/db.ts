@@ -10,8 +10,4 @@ const pool = new Pool({
   },
 });
 
-pool.connect()
-  .then(() => console.log("✅ PostgreSQL Connected (Supabase)"))
-  .catch((err) => console.error("❌ Database Connection Error:", err));
-
 export default pool;

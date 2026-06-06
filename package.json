@@ -1,6 +1,9 @@
 {
   "name": "caltrack-backend",
   "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "type": "commonjs",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only --files src/index.ts",
@@ -8,7 +11,6 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@vercel/node": "^5.8.12",
     "axios": "^1.16.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -19,7 +21,6 @@
     "morgan": "^1.10.1",
     "nodemailer": "^8.0.10",
     "pg": "^8.21.0",
-    "serverless-http": "^4.0.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
