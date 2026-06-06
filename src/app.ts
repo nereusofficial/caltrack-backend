@@ -17,6 +17,7 @@ app.use(helmet());
 const allowedOrigins = [
   "http://localhost:5173",
   "https://caltrackv1.vercel.app",
+  "https://caltrack-frontend-gc7mhuwb4-nereusofficials-projects.vercel.app",
 ];
 
 const corsOptions: cors.CorsOptions = {
