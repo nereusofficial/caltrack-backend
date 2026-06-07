@@ -1,10 +1,7 @@
 import nodemailer from "nodemailer";
 
-export const sendVerificationEmail = async (
-  email: string,
-  token: string
-) => {
-  const transporter = nodemailer.createTransport({
+const createTransporter = () =>
+  nodemailer.createTransport({
     service: "gmail",
     auth: {
       user: process.env.SMTP_USER,
@@ -12,8 +9,13 @@ export const sendVerificationEmail = async (
     },
   });
 
-  const verifyUrl =
-    `http://localhost:5000/api/auth/verify/${token}`;
+export const sendVerificationEmail = async (
+  email: string,
+  token: string
+) => {
+  const transporter = createTransporter();
+
+  const verifyUrl = `${process.env.BACKEND_URL}/api/auth/verify/${token}`;
 
   await transporter.sendMail({
     from: process.env.SMTP_USER,
@@ -31,16 +33,9 @@ export const sendResetPasswordEmail = async (
   email: string,
   token: string
 ) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const transporter = createTransporter();
 
-  const resetUrl =
-  `http://localhost:5173/reset-password?token=${token}`;
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
   await transporter.sendMail({
     from: process.env.SMTP_USER,

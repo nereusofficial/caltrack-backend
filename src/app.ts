@@ -1,9 +1,11 @@
-import express, { Application, Request, Response, NextFunction } from "express";
+import express, { Application, Request, Response } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes";
 import pool from "./config/db";
+import { corsMiddleware } from "./middleware/cors.middleware";
+import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 
 dotenv.config();
 
@@ -12,33 +14,8 @@ const app: Application = express();
 // Security middleware
 app.use(helmet());
 
-// Manual CORS middleware (replaces cors package)
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const origin = req.headers.origin;
-
-  if (origin) {
-    const normalized = origin.replace(/\/$/, "");
-
-    const allowedPatterns = [
-      /^http:\/\/localhost:\d+$/,
-      /^https:\/\/caltrackv1\.vercel\.app$/,
-      /^https:\/\/caltrack-frontend-[a-z0-9]+-nereusofficials-projects\.vercel\.app$/,
-    ];
-
-    if (allowedPatterns.some((p) => p.test(normalized))) {
-      res.setHeader("Access-Control-Allow-Origin", normalized);
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-    }
-  }
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
+// CORS
+app.use(corsMiddleware);
 
 // Request logging
 app.use(morgan("dev"));
@@ -82,22 +59,10 @@ app.use("/api/auth", authRoutes);
 // app.use("/api/foods", foodRoutes);
 // app.use("/api/calories", calorieRoutes);
 
-// Global Error Handler
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+// Error Handler
+app.use(errorHandler);
 
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
-
-// Handle Unknown Routes
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
+// 404 Handler
+app.use(notFoundHandler);
 
 export default app;

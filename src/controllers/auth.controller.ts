@@ -182,9 +182,7 @@ export const verifyEmail = async (
       [token]
     );
 
-    return res.redirect(
-      "http://localhost:5173/verify-success"
-    );
+    return res.redirect(`${process.env.FRONTEND_URL}/verify-success`);
   } catch (err: any) {
     return res.status(500).send(err.message);
   }
