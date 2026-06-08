@@ -250,13 +250,12 @@ export const resetPassword = async (req: Request, res: Response) => {
 
 export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { accessToken } = req.body;
+    const { accessToken, mode } = req.body; // mode: "login" | "signup"
 
     if (!accessToken) {
       return res.status(400).json({ success: false, message: "Access token is required." });
     }
 
-    // Get user info from Google
     const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -268,29 +267,28 @@ export const googleAuth = async (req: Request, res: Response) => {
     const googleUser = await googleRes.json();
     const { email, given_name, family_name } = googleUser;
 
-    // Check if user already exists
     const existing = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    const userExists = existing.rows.length > 0;
 
-    if (existing.rows.length > 0) {
-      // User exists — just log them in
-      return res.status(200).json({
-        success: true,
-        message: "Google login successful.",
-        token: "authenticated",
-      });
+    if (mode === "login") {
+      if (!userExists) {
+        return res.status(404).json({ success: false, message: "No account found. Please sign up first." });
+      }
+      return res.status(200).json({ success: true, message: "Google login successful.", token: "authenticated" });
     }
 
-    // New user — insert them
-    await pool.query(
-      `INSERT INTO users (firstname, lastname, email, password) VALUES ($1,$2,$3,$4)`,
-      [given_name, family_name ?? "", email, "GOOGLE_AUTH"]
-    );
+    if (mode === "signup") {
+      if (userExists) {
+        return res.status(400).json({ success: false, message: "Account already exists. Please log in instead." });
+      }
+      await pool.query(
+        `INSERT INTO users (firstname, lastname, email, password) VALUES ($1,$2,$3,$4)`,
+        [given_name, family_name ?? "", email, "GOOGLE_AUTH"]
+      );
+      return res.status(201).json({ success: true, message: "Google signup successful.", token: null });
+    }
 
-    return res.status(201).json({
-      success: true,
-      message: "Google signup successful.",
-      token: "authenticated",
-    });
+    return res.status(400).json({ success: false, message: "Invalid mode." });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
