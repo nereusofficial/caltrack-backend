@@ -16,57 +16,42 @@ const validatePassword = (password: string): string => {
 
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { email, password } = req.body;
 
-    // Password strength validation
     const passwordError = validatePassword(password);
     if (passwordError) {
       return res.status(400).json({ success: false, message: passwordError });
     }
 
-    // Clean up expired pending users
     await pool.query(`DELETE FROM pending_users WHERE expires_at < NOW()`);
 
-    // Check existing verified user
     const existingUser = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
+      `SELECT * FROM users WHERE email = $1`, [email]
     );
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Email already exists.",
-      });
+      return res.status(400).json({ success: false, message: "Email already exists." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const token = uuidv4();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
 
-    // Check existing pending user — resend verification
     const existingPending = await pool.query(
-      `SELECT * FROM pending_users WHERE email = $1`,
-      [email]
+      `SELECT * FROM pending_users WHERE email = $1`, [email]
     );
 
     if (existingPending.rows.length > 0) {
       await pool.query(
-        `UPDATE pending_users
-         SET firstname=$1, lastname=$2, password=$3, verification_token=$4, expires_at=$5
-         WHERE email=$6`,
-        [firstName, lastName, hashedPassword, token, expiresAt, email]
+        `UPDATE pending_users SET password=$1, verification_token=$2, expires_at=$3 WHERE email=$4`,
+        [hashedPassword, token, expiresAt, email]
       );
       await sendVerificationEmail(email, token);
-      return res.status(200).json({
-        success: true,
-        message: "Verification email resent.",
-      });
+      return res.status(200).json({ success: true, message: "Verification email resent." });
     }
 
     await pool.query(
-      `INSERT INTO pending_users (firstname, lastname, email, password, verification_token, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [firstName, lastName, email, hashedPassword, token, expiresAt]
+      `INSERT INTO pending_users (email, password, verification_token, expires_at) VALUES ($1,$2,$3,$4)`,
+      [email, hashedPassword, token, expiresAt]
     );
 
     await sendVerificationEmail(email, token);
@@ -85,8 +70,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
     const { token } = req.params;
 
     const pendingUser = await pool.query(
-      `SELECT * FROM pending_users WHERE verification_token = $1`,
-      [token]
+      `SELECT * FROM pending_users WHERE verification_token = $1`, [token]
     );
 
     if (pendingUser.rows.length === 0) {
@@ -97,20 +81,18 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     if (user.expires_at && new Date() > new Date(user.expires_at)) {
       await pool.query(
-        `DELETE FROM pending_users WHERE verification_token = $1`,
-        [token]
+        `DELETE FROM pending_users WHERE verification_token = $1`, [token]
       );
       return res.status(400).send("Verification link has expired.");
     }
 
     await pool.query(
-      `INSERT INTO users (firstname, lastname, email, password) VALUES ($1,$2,$3,$4)`,
-      [user.firstname, user.lastname, user.email, user.password]
+      `INSERT INTO users (email, password) VALUES ($1,$2)`,
+      [user.email, user.password]
     );
 
     await pool.query(
-      `DELETE FROM pending_users WHERE verification_token = $1`,
-      [token]
+      `DELETE FROM pending_users WHERE verification_token = $1`, [token]
     );
 
     return res.redirect(`${process.env.FRONTEND_URL}/verify-success`);
@@ -124,30 +106,24 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     const result = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
+      `SELECT * FROM users WHERE email = $1`, [email]
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials.",
-      });
+      return res.status(400).json({ success: false, message: "Invalid credentials." });
     }
 
     const user = result.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials.",
-      });
+      return res.status(400).json({ success: false, message: "Invalid credentials." });
     }
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
+      token: "authenticated",
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -159,15 +135,11 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const { email } = req.body;
 
     const user = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
+      `SELECT * FROM users WHERE email = $1`, [email]
     );
 
     if (user.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with that email.",
-      });
+      return res.status(404).json({ success: false, message: "No account found with that email." });
     }
 
     const token = uuidv4();
@@ -180,10 +152,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     await sendResetPasswordEmail(email, token);
 
-    return res.status(200).json({
-      success: true,
-      message: "Password reset email sent.",
-    });
+    return res.status(200).json({ success: true, message: "Password reset email sent." });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -193,37 +162,25 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, password } = req.body;
 
-    // Password strength validation
     const passwordError = validatePassword(password);
     if (passwordError) {
       return res.status(400).json({ success: false, message: passwordError });
     }
 
     const user = await pool.query(
-      `SELECT * FROM users WHERE reset_token = $1`,
-      [token]
+      `SELECT * FROM users WHERE reset_token = $1`, [token]
     );
 
     if (user.rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid reset token.",
-      });
+      return res.status(400).json({ success: false, message: "Invalid reset token." });
     }
 
     const account = user.rows[0];
 
-    if (
-      account.reset_token_expires &&
-      new Date() > new Date(account.reset_token_expires)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Reset token expired.",
-      });
+    if (account.reset_token_expires && new Date() > new Date(account.reset_token_expires)) {
+      return res.status(400).json({ success: false, message: "Reset token expired." });
     }
 
-    // Check if new password is same as current password
     const isSamePassword = await bcrypt.compare(password, account.password);
     if (isSamePassword) {
       return res.status(400).json({
@@ -239,10 +196,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       [hashedPassword, account.id]
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Password updated successfully.",
-    });
+    return res.status(200).json({ success: true, message: "Password updated successfully." });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -250,7 +204,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
 export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { accessToken, mode } = req.body; // mode: "login" | "signup"
+    const { accessToken, mode } = req.body;
 
     if (!accessToken) {
       return res.status(400).json({ success: false, message: "Access token is required." });
@@ -282,8 +236,8 @@ export const googleAuth = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: "Account already exists. Please log in instead." });
       }
       await pool.query(
-        `INSERT INTO users (firstname, lastname, email, password) VALUES ($1,$2,$3,$4)`,
-        [given_name, family_name ?? "", email, "GOOGLE_AUTH"]
+        `INSERT INTO users (email, password) VALUES ($1,$2)`,
+        [email, "GOOGLE_AUTH"]
       );
       return res.status(201).json({ success: true, message: "Google signup successful.", token: null });
     }
