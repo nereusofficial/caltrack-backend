@@ -247,3 +247,54 @@ export const googleAuth = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const facebookAuth = async (req: Request, res: Response) => {
+  try {
+    const { accessToken, mode } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ success: false, message: "Access token is required." });
+    }
+
+    // Get user info from Facebook
+    const fbRes = await fetch(
+      `https://graph.facebook.com/me?fields=id,email&access_token=${accessToken}`
+    );
+
+    if (!fbRes.ok) {
+      return res.status(401).json({ success: false, message: "Invalid Facebook token." });
+    }
+
+    const fbUser = await fbRes.json();
+    const { email } = fbUser;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Facebook account has no email. Please use a different login method." });
+    }
+
+    const existing = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    const userExists = existing.rows.length > 0;
+
+    if (mode === "login") {
+      if (!userExists) {
+        return res.status(404).json({ success: false, message: "No account found. Please sign up first." });
+      }
+      return res.status(200).json({ success: true, message: "Facebook login successful.", token: "authenticated" });
+    }
+
+    if (mode === "signup") {
+      if (userExists) {
+        return res.status(400).json({ success: false, message: "Account already exists. Please log in instead." });
+      }
+      await pool.query(
+        `INSERT INTO users (email, password) VALUES ($1,$2)`,
+        [email, "FACEBOOK_AUTH"]
+      );
+      return res.status(201).json({ success: true, message: "Facebook signup successful.", token: null });
+    }
+
+    return res.status(400).json({ success: false, message: "Invalid mode." });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
